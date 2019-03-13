@@ -1,6 +1,6 @@
 <?php
 /**
- * Nécessite au moins PHP 7.0.
+ * Nécessite au moins PHP 7.1.
  */
 
 /**
@@ -32,18 +32,25 @@ function recurse_copy($src, $dst)
 function compressFile($file, $path)
 {
     $jpgquality = 70;
-    $pngQuality = 70;
+    $pngQuality = 80;
 
     $completePath = $path . $file;
 
     if (is_file($completePath)) {
-
         $info = getimagesize($completePath);
         if ($info['mime'] == 'image/jpeg') {
-            $image = imagecreatefromjpeg($completePath);
-            imagejpeg($image, $completePath, $jpgquality);
+            $image = new Imagick();
+            $image->readImage($completePath);
+            $image->setImageCompression(Imagick::COMPRESSION_JPEG);
+            $image->setImageCompressionQuality(80);
+            $image->writeImage();
         } elseif ($info['mime'] == 'image/png') {
-            $command = 'pngquant  --quality=' . $pngQuality . ' "' . $completePath . '" --output "' . $completePath . '"';
+            if(file_exists($completePath)) { // Si le fichier est déjà là on le supprime car pngquant ne peut pas écrire par-dessus un fichier
+                unlink($completePath);
+            }
+            $completePathSrc = str_replace('kompressor', 'src', $completePath);
+            $command = 'pngquant --quality=' . $pngQuality . ' "' . $completePathSrc . '" --output "' . $completePath . '"';
+            $command = str_replace('/', '\\', $command);
             exec($command);
         }
     } else {
@@ -53,31 +60,30 @@ function compressFile($file, $path)
 
 /**
  * Explore un dossier et différencie les fichiers des dossiers.
- * @param $dir Nom du dossier
+ * @param $curDir Nom du dossier courant
  * @param string $dirPath Chemin du dossier
  */
-function exploreDir($dir, string $dirPath)
+function exploreDir($curDir, string $dirPath)
 {
-    while (($file = readdir($dir))) {
+    while (($file = readdir($curDir))) {
         if ($file == '.' || $file == '..') {
 //            echo 'ignore<br>';
-        } else if (is_file(__DIR__ . $dirPath . '/' . $file)) {
-            var_dump(__DIR__ . $dirPath . '/' . $file);
-            echo $dirPath . '/' . $file . '<br>';
+        } else if (is_file(__DIR__ . $dirPath . '/' . $file)) { // Est un fichier
+            echo '<p style="color: green;">' . $dirPath . '/' . $file . '</p>';
             compressFile($file, __DIR__ . $dirPath . '/');
-        } else {
-            echo '==>' . $dirPath . '<br>';
-            $dir2 = @opendir(__DIR__ . $dirPath . '/' . $file);
-            exploreDir($dir2, $dirPath . '/' . $file);
+        } else { // Est un dossier
+            $nextDir = @opendir(__DIR__ . $dirPath . '/' . $file);
+            exploreDir($nextDir, $dirPath . '/' . $file);
         }
     }
 }
 
-$path = __DIR__ . '/src';
-$dest = __DIR__ . '/kompressor';
+$srcFolder = '/src';
+$destFolder = '/kompressor';
+$pathDir = __DIR__ . $srcFolder;
+$destDir = __DIR__ . $destFolder;
 
-recurse_copy($path, $dest);
+recurse_copy($pathDir, $destDir); // Copie de tous les fichiers et dossiers dans le dossier de destination
 
-$dir = opendir($dest);
-
-exploreDir($dir, '/kompressor');
+$firstDir = opendir($destDir);
+exploreDir($firstDir, $destFolder);

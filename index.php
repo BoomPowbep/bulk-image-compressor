@@ -31,7 +31,7 @@ function recurse_copy($src, $dst)
  */
 function compressFile($file, $path)
 {
-    $jpgquality = 70;
+    $jpgquality = 60;
     $pngQuality = 80;
 
     $completePath = $path . $file;
@@ -48,10 +48,36 @@ function compressFile($file, $path)
             if(file_exists($completePath)) { // Si le fichier est déjà là on le supprime car pngquant ne peut pas écrire par-dessus un fichier
                 unlink($completePath);
             }
-            $completePathSrc = str_replace('kompressor', 'src', $completePath);
+
+            $completePathSrc = str_replace('kompressor', 'src', $completePath); // Chemin complet du fichier source
+
+            // Sauvegarde avant de retirer les accents
+            $completePathSave = $completePath;
+            $completePathSrcSave = $completePathSrc;
+
+            // Suppression des accents
+            $transliterator = Transliterator::create('NFD; [:Nonspacing Mark:] Remove; NFC;');
+            $completePath = $transliterator->transliterate($completePath);
+            $completePathSrc = $transliterator->transliterate($completePathSrc);
+
+            // Suppression des apostrophes
+            $completePath = str_replace("’", " ", $completePath);
+            $completePath = str_replace("'", " ", $completePath);
+            $completePathSrc = str_replace("’", " ", $completePathSrc);
+            $completePathSrc = str_replace("'", " ", $completePathSrc);
+
+            // Applique les modifs au fichier source
+            rename($completePathSrcSave, $completePathSrc);
+
             $command = 'pngquant --quality=' . $pngQuality . ' "' . $completePathSrc . '" --output "' . $completePath . '"';
-            $command = str_replace('/', '\\', $command);
-            exec($command);
+//            $command = str_replace('/', '\\', $command);
+            exec($command); // Compression
+
+            // Rétablissement du nom original
+            rename($completePathSrc, $completePathSrcSave);
+            rename($completePath, $completePathSave);
+
+            // TODO tester
         }
     } else {
         die($file . ' is not a file.');
